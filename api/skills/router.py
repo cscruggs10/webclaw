@@ -89,6 +89,24 @@ def _validate_skill_name(skill: str) -> JSONResponse | None:
     return None
 
 
+def actions_from_listing(listing: dict) -> list[str]:
+    """Flatten a `list-all-actions` response into a sorted, de-duplicated list."""
+    if not isinstance(listing, dict):
+        return []
+    names: list[str] = []
+    core = listing.get("core_actions")
+    if isinstance(core, list):
+        names.extend(a for a in core if isinstance(a, str))
+    modules = listing.get("module_actions")
+    if isinstance(modules, dict):
+        for value in modules.values():
+            if isinstance(value, list):
+                names.extend(a for a in value if isinstance(a, str))
+    elif isinstance(modules, list):
+        names.extend(a for a in modules if isinstance(a, str))
+    return sorted(set(names))
+
+
 @router.get("/api/v1/schema/actions/{skill}")
 async def list_actions(skill: str):
     """Discover available actions for a skill.
@@ -123,6 +141,14 @@ async def list_actions(skill: str):
     yaml_actions = get_skill_actions(skill_md)
     if yaml_actions:
         return {"status": "ok", "skill": skill, "actions": yaml_actions}
+
+    # Level 4: ERPClaw's router answers an unknown action with
+    # "Unknown action" and a hint, not a list. Its read-only
+    # `list-all-actions` returns core_actions plus module_actions.
+    listing = await execute_skill(skill, "list-all-actions", {})
+    listed = actions_from_listing(listing)
+    if listed:
+        return {"status": "ok", "skill": skill, "actions": listed}
 
     return {"status": "error", "message": f"Could not discover actions for {skill}"}
 

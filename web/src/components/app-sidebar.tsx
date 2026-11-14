@@ -58,6 +58,8 @@ import {
   Terminal,
   Eye,
   EyeOff,
+  Car,
+  Handshake,
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import {
@@ -509,6 +511,36 @@ function SkillEntityTree({
   );
 }
 
+// ── Dealer tabs (always on top) ─────────────────────────────────────────────
+
+export const DEALER_TABS = [
+  { href: "/inventory", label: "Inventory", icon: Car },
+  { href: "/deals", label: "Deals", icon: Handshake },
+  { href: "/customers", label: "Customers", icon: Users },
+  { href: "/reports", label: "Reports", icon: BarChart3 },
+] as const;
+
+function DealerNav({ pathname }: { pathname: string }) {
+  return (
+    <SidebarGroup className="py-2">
+      <SidebarGroupContent>
+        <SidebarMenu>
+          {DEALER_TABS.map((tab) => (
+            <SidebarMenuItem key={tab.href}>
+              <SidebarMenuButton asChild isActive={pathname === tab.href || pathname.startsWith(`${tab.href}/`)}>
+                <Link href={tab.href}>
+                  <tab.icon className="h-4 w-4" />
+                  <span className="font-medium">{tab.label}</span>
+                </Link>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+          ))}
+        </SidebarMenu>
+      </SidebarGroupContent>
+    </SidebarGroup>
+  );
+}
+
 // ── Main sidebar ────────────────────────────────────────────────────────────
 
 export function AppSidebar() {
@@ -666,6 +698,10 @@ export function AppSidebar() {
       )}
 
       <SidebarContent>
+        <DealerNav pathname={pathname} />
+        <div className="mx-3 mt-1 border-t pt-2 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+          More / Admin
+        </div>
         {isSkillMode && currentSkillName ? (
           /* ── Skill mode: entity tree ── */
           <SkillEntityTree

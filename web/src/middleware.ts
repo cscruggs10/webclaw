@@ -17,9 +17,10 @@ export function middleware(request: NextRequest) {
     return NextResponse.next();
   }
 
-  // Landing page is public (exact match)
+  // The root opens the dealer home: Inventory when signed in, else the login page.
   if (pathname === "/") {
-    return NextResponse.next();
+    const target = request.cookies.has("refresh_token") ? "/inventory" : "/login";
+    return NextResponse.redirect(new URL(target, request.url));
   }
 
   // Allow public pages

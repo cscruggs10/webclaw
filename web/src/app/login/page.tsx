@@ -27,7 +27,7 @@ export default function LoginPage() {
 
   // Redirect if already logged in
   useEffect(() => {
-    if (!loading && user) router.replace("/dashboard");
+    if (!loading && user) router.replace("/inventory");
   }, [user, loading, router]);
 
   async function handleSubmit(e: React.FormEvent) {
@@ -39,7 +39,7 @@ export default function LoginPage() {
     if (err) {
       setError(err);
     } else {
-      router.push("/dashboard");
+      router.push("/inventory");
     }
   }
 
