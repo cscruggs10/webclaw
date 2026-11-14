@@ -15,7 +15,7 @@ import { Label } from "@/components/ui/label";
 import { useAuth } from "@/lib/auth";
 import { Zap } from "lucide-react";
 
-const APP_TITLE = process.env.NEXT_PUBLIC_OCUI_TITLE || "Webclaw";
+const APP_TITLE = process.env.NEXT_PUBLIC_OCUI_TITLE || "I Finance";
 
 export default function LoginPage() {
   const [email, setEmail] = useState("");

@@ -15,7 +15,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Webclaw",
+  title: process.env.NEXT_PUBLIC_OCUI_TITLE || "I Finance",
   description: "The universal web UI for OpenClaw skills",
 };
 

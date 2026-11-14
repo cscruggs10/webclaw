@@ -437,7 +437,7 @@ export default function Dashboard() {
                 <Rocket className="h-6 w-6" />
               </div>
               <div className="flex-1">
-                <h3 className="text-lg font-semibold">Welcome to Webclaw!</h3>
+                <h3 className="text-lg font-semibold">Welcome to I Finance!</h3>
                 <p className="text-sm text-white/80 mt-1">
                   Get started by loading demo data or creating your first company.
                 </p>

@@ -16,7 +16,7 @@ import { Zap } from "lucide-react";
 import { OnboardingWizard } from "@/components/onboarding-wizard";
 import { setAccessToken } from "@/lib/auth";
 
-const APP_TITLE = process.env.NEXT_PUBLIC_OCUI_TITLE || "Webclaw";
+const APP_TITLE = process.env.NEXT_PUBLIC_OCUI_TITLE || "I Finance";
 
 type SetupPhase = "checking" | "admin" | "wizard";
 

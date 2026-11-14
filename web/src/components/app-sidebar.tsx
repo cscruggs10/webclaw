@@ -101,7 +101,7 @@ const CATEGORY_ICONS: Record<string, React.ElementType> = {
   "property-management": Building2,
 };
 
-const APP_TITLE = process.env.NEXT_PUBLIC_OCUI_TITLE || "Webclaw";
+const APP_TITLE = process.env.NEXT_PUBLIC_OCUI_TITLE || "I Finance";
 
 // ── Recent Skills (localStorage) ────────────────────────────────────────────
 
@@ -661,8 +661,8 @@ export function AppSidebar() {
     (r) => r.role_name === "System Manager"
   ) ?? false;
 
-  // In multi-suite mode, use "Webclaw" as the title
-  const title = isMultiSuite ? "Webclaw" : APP_TITLE;
+  // Same app title (I Finance) in single- and multi-suite mode
+  const title = APP_TITLE;
 
   return (
     <Sidebar>
