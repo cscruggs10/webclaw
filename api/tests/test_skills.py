@@ -166,6 +166,19 @@ def test_build_cli_args_booleans():
     assert "abc" in args
 
 
+def test_build_cli_args_user_confirmed_is_bare_switch():
+    """--user-confirmed is a bare switch, sent only for an explicit true."""
+    assert build_cli_args("submit-invoice", {"user_confirmed": True}) == [
+        "--action", "submit-invoice", "--user-confirmed",
+    ]
+    assert build_cli_args("submit-invoice", {"user-confirmed": "1"}) == [
+        "--action", "submit-invoice", "--user-confirmed",
+    ]
+    args = build_cli_args("submit-invoice", {"user_confirmed": False, "id": "abc"})
+    assert "--user-confirmed" not in args
+    assert args == ["--action", "submit-invoice", "--id", "abc"]
+
+
 # ---------------------------------------------------------------------------
 # Test 4: build_cli_args skips underscore and empty params
 # ---------------------------------------------------------------------------

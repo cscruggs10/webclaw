@@ -70,6 +70,12 @@ def build_cli_args(action: str, params: dict) -> list[str]:
         if skip_generic_id and norm_key == "id":
             continue
         flag = f"--{norm_key}"
+        # ERPClaw's high-impact gate wants a bare --user-confirmed switch, not
+        # "--user-confirmed 1". Only an explicit true from the caller sends it.
+        if norm_key == "user-confirmed":
+            if value is True or (isinstance(value, str) and value.lower() in ("true", "1", "yes")):
+                args.append(flag)
+            continue
         # Handle actual booleans — pass "1" for true, skip for false
         if isinstance(value, bool):
             if value:
