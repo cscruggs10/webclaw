@@ -199,3 +199,19 @@ describe("migrateActionUrl", () => {
     expect(migrateActionUrl("/skills/propertyclaw", params)).toBe("/skills/propertyclaw/properties?status=active");
   });
 });
+
+describe("skill-prefixed list actions (AutomotiveClaw auto-list-*)", () => {
+  it("keeps a prefixed list action as its own slug and action", () => {
+    expect(slugFromListAction("auto-list-vehicles")).toBe("auto-list-vehicles");
+    expect(listActionFromSlug("auto-list-vehicles")).toBe("auto-list-vehicles");
+    expect(listActionFromSlug("vehicles")).toBe("list-vehicles");
+    expect(listActionFromSlug("price-lists")).toBe("list-price-lists");
+  });
+  it("derives prefixed add/get actions and the entity id param", () => {
+    const acts = ["auto-list-vehicles", "auto-add-vehicle", "auto-get-vehicle"];
+    expect(deriveAddAction("auto-list-vehicles", acts)).toBe("auto-add-vehicle");
+    expect(deriveGetAction("auto-list-vehicles", acts)).toBe("auto-get-vehicle");
+    expect(entityIdParam("auto-list-vehicles")).toBe("vehicle-id");
+    expect(entityLabel("auto-list-vehicles", null)).toBe("Vehicles");
+  });
+});

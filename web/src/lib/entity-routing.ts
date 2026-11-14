@@ -48,17 +48,32 @@ export function slugFromListAction(listAction: string): string {
   return listAction.replace(/^list-/, "");
 }
 
-/** properties → list-properties */
+/**
+ * Split a list action into its skill prefix and plural entity.
+ * Some skills namespace their actions: AutomotiveClaw's list action is
+ * "auto-list-vehicles", so the slug keeps the whole name ("auto-list-vehicles")
+ * and the add/get actions are "auto-add-vehicle" / "auto-get-vehicle".
+ *   list-properties     → { prefix: "",      plural: "properties" }
+ *   auto-list-vehicles  → { prefix: "auto-", plural: "vehicles" }
+ */
+function splitListAction(listAction: string): { prefix: string; plural: string } {
+  const m = listAction.match(/^((?:[a-z0-9]+-)*?)list-(.+)$/);
+  if (m) return { prefix: m[1], plural: m[2] };
+  return { prefix: "", plural: listAction };
+}
+
+/** properties → list-properties; auto-list-vehicles stays auto-list-vehicles */
 export function listActionFromSlug(slug: string): string {
+  if (/^(?:[a-z0-9]+-)+list-./.test(slug)) return slug;
   return `list-${slug}`;
 }
 
 /** list-properties → add-property (singular) */
 export function deriveAddAction(listAction: string, availableActions?: string[]): string | null {
-  const plural = listAction.replace(/^list-/, "");
+  const { prefix, plural } = splitListAction(listAction);
   const singular = singularize(plural);
-  const addCandidate = `add-${singular}`;
-  const createCandidate = `create-${singular}`;
+  const addCandidate = `${prefix}add-${singular}`;
+  const createCandidate = `${prefix}create-${singular}`;
   if (availableActions) {
     if (availableActions.includes(addCandidate)) return addCandidate;
     if (availableActions.includes(createCandidate)) return createCandidate;
@@ -69,9 +84,9 @@ export function deriveAddAction(listAction: string, availableActions?: string[])
 
 /** list-properties → get-property (singular) */
 export function deriveGetAction(listAction: string, availableActions?: string[]): string | null {
-  const plural = listAction.replace(/^list-/, "");
+  const { prefix, plural } = splitListAction(listAction);
   const singular = singularize(plural);
-  const getCandidate = `get-${singular}`;
+  const getCandidate = `${prefix}get-${singular}`;
   if (availableActions) {
     return availableActions.includes(getCandidate) ? getCandidate : null;
   }
@@ -114,8 +129,8 @@ export function entityLabel(slug: string, uiConfig: UIConfig | null): string {
       return uiConfig.entities[key].label_plural || uiConfig.entities[key].label;
     }
   }
-  // Fallback: slug "work-orders" → "Work Orders"
-  return slug
+  // Fallback: slug "work-orders" → "Work Orders"; "auto-list-vehicles" → "Vehicles"
+  return splitListAction(listActionFromSlug(slug)).plural
     .split("-")
     .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
     .join(" ");
@@ -130,7 +145,7 @@ export function entityLabel(slug: string, uiConfig: UIConfig | null): string {
  * "properties" → "property-id", "work-orders" → "work-order-id"
  */
 export function entityIdParam(slug: string): string {
-  return `${singularize(slug)}-id`;
+  return `${singularize(splitListAction(listActionFromSlug(slug)).plural)}-id`;
 }
 
 /**
