@@ -1,0 +1,19 @@
+# API service. In Railway, leave this service's root directory empty (repo root)
+# so this file and the root Dockerfile are the ones that build.
+# Web and backup use the railway.toml in their own root directories.
+
+[build]
+builder = "DOCKERFILE"
+dockerfilePath = "Dockerfile"
+watchPatterns = ["api/**", "Dockerfile", ".dockerignore", "railway.toml"]
+
+[deploy]
+healthcheckPath = "/api/v1/health"
+healthcheckTimeout = 300
+restartPolicyType = "ON_FAILURE"
+restartPolicyMaxRetries = 5
+# The dashboard's users live in a SQLite file on the volume, so this service
+# stays at one instance and does not overlap an old container with a new one.
+numReplicas = 1
+overlapSeconds = 0
+requiredMountPath = "/data"

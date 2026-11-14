@@ -1,0 +1,76 @@
+# Local production-shaped stack. The password below is only for this compose
+# file. Do not reuse it on Railway.
+
+name: webclaw-local
+
+services:
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: erpclaw
+      POSTGRES_PASSWORD: erpclaw
+      POSTGRES_DB: erpclaw
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U erpclaw -d erpclaw"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    ports:
+      - "5432:5432"
+
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        ERPCLAW_REF: aea97950a7d78615fc06d1d129c17c7775b38581
+        AUTOMOTIVE_REF: 6123ef7575dde4f3b706c8fff5967717d4c587db
+    environment:
+      DATABASE_URL: postgresql://erpclaw:erpclaw@postgres:5432/erpclaw
+      ADMIN_EMAIL: corey@example.com
+      ADMIN_PASSWORD: Local-Test-1
+      ADMIN_NAME: Corey Scruggs
+      WEBCLAW_JWT_SECRET: local-dev-jwt-secret-not-for-production-00
+      COMPANY_NAME: Scruggs Wholesale
+      COMPANY_ABBR: SW
+      COMPANY_CURRENCY: USD
+      COMPANY_COUNTRY: United States
+      WEBCLAW_HTTPS: "0"
+      WEBCLAW_CORS_ORIGIN: http://localhost:3000
+      PORT: "8001"
+    volumes:
+      - webclaw-data:/data
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8001/api/v1/health', timeout=5)",
+        ]
+      interval: 5s
+      timeout: 10s
+      retries: 60
+      start_period: 20s
+    ports:
+      - "8001:8001"
+
+  web:
+    build:
+      context: ./web
+      dockerfile: Dockerfile
+    environment:
+      API_INTERNAL_URL: http://api:8001
+      API_URL: http://api:8001
+      PORT: "3000"
+    depends_on:
+      api:
+        condition: service_healthy
+    ports:
+      - "3000:3000"
+
+volumes:
+  webclaw-data:

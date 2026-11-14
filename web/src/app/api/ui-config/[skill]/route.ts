@@ -16,8 +16,16 @@ function getSkillsDir(): string {
   return prodDir;
 }
 
-// Backend API URL (FastAPI on same server)
-const API_URL = process.env.API_URL || "http://127.0.0.1:8001";
+function modulesDir(): string {
+  if (process.env.ERPCLAW_MODULES_DIR) return process.env.ERPCLAW_MODULES_DIR;
+  if (process.env.ERPCLAW_HOME) return path.join(process.env.ERPCLAW_HOME, "modules");
+  const homeDir = process.env.HOME || "/home/nobody";
+  return path.join(homeDir, ".openclaw", "erpclaw", "modules");
+}
+
+// Backend API URL. On Railway this is the API service's private URL, read
+// when the request is handled, not when the image is built.
+const API_URL = process.env.API_INTERNAL_URL || process.env.API_URL || "http://127.0.0.1:8001";
 
 export async function GET(
   _request: NextRequest,
@@ -33,10 +41,9 @@ export async function GET(
   const skillsDir = getSkillsDir();
   let yamlPath = path.join(skillsDir, skill, "UI.yaml");
 
-  // Fallback: check erpclaw modules directory
+  // Fallback: ERPClaw modules directory (ERPCLAW_HOME or the OpenClaw default)
   if (!fs.existsSync(yamlPath)) {
-    const homeDir = process.env.HOME || "/home/nobody";
-    const modulesPath = path.join(homeDir, ".openclaw", "erpclaw", "modules", skill, "UI.yaml");
+    const modulesPath = path.join(modulesDir(), skill, "UI.yaml");
     if (fs.existsSync(modulesPath)) {
       yamlPath = modulesPath;
     }

@@ -3,9 +3,15 @@ import asyncio
 import json
 import os
 import re
+import sys
 
-SKILLS_DIR = os.path.expanduser("~/clawd/skills")
-MODULES_DIR = os.path.expanduser("~/.openclaw/erpclaw/modules")
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+from runtime_paths import erpclaw_home, erpclaw_lib_dir, modules_dir, skills_dir
+
+SKILLS_DIR = skills_dir()
+MODULES_DIR = modules_dir()
+ERPCLAW_LIB = erpclaw_lib_dir()
 
 # Skill names must be lowercase alphanumeric with hyphens only (path traversal defense)
 _SKILL_NAME_RE = re.compile(r"^[a-z0-9][a-z0-9-]*$")
@@ -85,26 +91,31 @@ async def execute_skill(skill: str, action: str, params: dict) -> dict:
 
     cmd = ["python3", script] + build_cli_args(action, params)
 
-    # Build PYTHONPATH: include the skill's own scripts dir + any shared libs
-    skill_dir = os.path.join(SKILLS_DIR, skill, "scripts")
-    python_paths = [skill_dir]
-    # Add erpclaw shared lib if it exists (backward-compatible)
-    erpclaw_lib = os.path.expanduser("~/.openclaw/erpclaw/lib")
-    if os.path.isdir(erpclaw_lib):
-        python_paths.append(erpclaw_lib)
+    # Build PYTHONPATH: the skill's own scripts dir + the shared ERPClaw lib.
+    skill_root = find_skill_dir(skill) or os.path.join(SKILLS_DIR, skill)
+    python_paths = [os.path.join(skill_root, "scripts")]
+    lib_dir = ERPCLAW_LIB if os.path.isdir(ERPCLAW_LIB) else erpclaw_lib_dir()
+    if os.path.isdir(lib_dir):
+        python_paths.append(lib_dir)
     existing = os.environ.get("PYTHONPATH", "")
     if existing:
         python_paths.append(existing)
+    child_env = dict(os.environ)
+    # ERPClaw resolves sibling skills from OPENCLAW_SKILLS_DIR. Point it at
+    # the same directory Webclaw scans when the operator only set SKILLS_DIR.
+    child_env.setdefault("OPENCLAW_SKILLS_DIR", SKILLS_DIR)
+    child_env.setdefault("ERPCLAW_HOME", erpclaw_home())
+    child_env["PYTHONPATH"] = os.pathsep.join(python_paths)
 
     # Seed-demo-data can take 60-90s due to many subprocess calls
-    timeout = 120 if action == "seed-demo-data" else 30
+    timeout = 120 if action == "seed-demo-data" else 60
 
     try:
         proc = await asyncio.create_subprocess_exec(
             *cmd,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
-            env={**os.environ, "PYTHONPATH": os.pathsep.join(python_paths)},
+            env=child_env,
         )
         stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=timeout)
     except asyncio.TimeoutError:

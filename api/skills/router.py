@@ -33,8 +33,14 @@ def _inject_company_id(skill: str, action: str, params: dict) -> dict:
     if "company-id" in params or "company_id" in params:
         return params
 
-    # Only inject for erpclaw-family skills (share the erpclaw DB)
-    if not skill.startswith("erpclaw"):
+    # ERPClaw core, its domain scripts, and editions that share the books
+    # (AutomotiveClaw). WEBCLAW_COMPANY_SKILLS adds more names.
+    extra = {
+        part.strip()
+        for part in os.environ.get("WEBCLAW_COMPANY_SKILLS", "automotiveclaw").split(",")
+        if part.strip()
+    }
+    if not (skill.startswith("erpclaw") or skill in extra):
         return params
 
     # Skip injection for actions that don't accept --company-id
@@ -49,7 +55,7 @@ def _inject_company_id(skill: str, action: str, params: dict) -> dict:
     if (skill, action) in _SKIP_COMPANY_ID:
         return params
 
-    if skill not in _default_company_cache:
+    if not _default_company_cache.get(skill):
         company_id = None
         try:
             conn = db.get_skill_db(skill)
@@ -63,7 +69,8 @@ def _inject_company_id(skill: str, action: str, params: dict) -> dict:
                 conn.close()
         except Exception:
             pass
-        _default_company_cache[skill] = company_id
+        if company_id:
+            _default_company_cache[skill] = company_id
 
     company_id = _default_company_cache.get(skill)
     if company_id:
@@ -347,13 +354,11 @@ async def action_index():
 
 @router.get("/api/v1/activity")
 async def get_activity(limit: int = 10):
-    """Recent activity from audit_log table in the erpclaw database."""
-    import sqlite3
-
-    erpclaw_db = os.path.expanduser("~/.openclaw/erpclaw/data.sqlite")
+    """Recent activity from audit_log in the shared ERPClaw books."""
     try:
-        conn = sqlite3.connect(erpclaw_db)
-        conn.row_factory = sqlite3.Row
+        conn = db.get_skill_db("erpclaw")
+        if conn is None:
+            return {"status": "ok", "activity": []}
         rows = conn.execute(
             "SELECT skill, action, user_id, timestamp as created_at "
             "FROM audit_log ORDER BY timestamp DESC LIMIT ?",

@@ -1,12 +1,12 @@
 """Alerts API — evaluates alert rules against live skill data."""
 import glob
 import os
-import sqlite3
 import time
 
 from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse
 
+import db
 from skills.executor import SKILLS_DIR, execute_skill
 from .alert_rules import get_rules_for_skills, _check_condition
 
@@ -19,9 +19,6 @@ CACHE_TTL = 300  # 5 minutes
 # Company ID cache (rarely changes)
 _company_id_cache: tuple[float, str | None] | None = None
 _COMPANY_CACHE_TTL = 3600  # 1 hour
-
-ERPCLAW_DB = os.path.expanduser("~/.openclaw/erpclaw/data.sqlite")
-
 
 def _get_installed_skills() -> set[str]:
     """Discover installed skill names from SKILLS_DIR."""
@@ -37,25 +34,28 @@ def _get_installed_skills() -> set[str]:
 
 
 def _get_default_company_id() -> str | None:
-    """Read the first company ID from the ERPClaw database."""
+    """Read the first company ID from the shared ERPClaw books."""
     global _company_id_cache
     now = time.time()
     if _company_id_cache and (now - _company_id_cache[0]) < _COMPANY_CACHE_TTL:
         return _company_id_cache[1]
 
+    conn = None
     try:
-        if not os.path.exists(ERPCLAW_DB):
+        conn = db.get_skill_db("erpclaw")
+        if conn is None:
             _company_id_cache = (now, None)
             return None
-        conn = sqlite3.connect(ERPCLAW_DB)
         row = conn.execute("SELECT id FROM company LIMIT 1").fetchone()
-        conn.close()
         company_id = row[0] if row else None
         _company_id_cache = (now, company_id)
         return company_id
     except Exception:
         _company_id_cache = (now, None)
         return None
+    finally:
+        if conn is not None:
+            conn.close()
 
 
 def _extract_count(result: dict, field_name: str) -> float | None:

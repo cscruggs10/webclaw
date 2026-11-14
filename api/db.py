@@ -14,9 +14,14 @@ import stat
 
 import yaml
 
-SKILLS_DIR = os.path.expanduser("~/clawd/skills")
+from pg_skill_db import open_postgres
+from runtime_paths import erpclaw_sqlite_path, skills_dir, use_postgres
+
+SKILLS_DIR = skills_dir()
 _SKILL_NAME_RE = re.compile(r"^[a-z0-9][a-z0-9-]*$")
-DEFAULT_WEBCLAW_DB = os.path.expanduser("~/.openclaw/webclaw/webclaw.sqlite")
+DEFAULT_WEBCLAW_DB = os.path.expanduser(
+    os.environ.get("WEBCLAW_DB_PATH", "~/.openclaw/webclaw/webclaw.sqlite")
+)
 
 # Cache: skill_name → db_path (from SKILL.md webclaw.database)
 _skill_db_cache: dict[str, str] = {}
@@ -77,20 +82,49 @@ def get_connection(db_path: str | None = None) -> sqlite3.Connection:
     return conn
 
 
-def get_skill_db(skill_name: str) -> sqlite3.Connection | None:
+def _shared_skill_names() -> set[str]:
+    raw = os.environ.get("WEBCLAW_SHARED_DB_SKILLS", "automotiveclaw")
+    return {part.strip() for part in raw.split(",") if part.strip()}
+
+
+def _is_shared_books(db_path: str | None) -> bool:
+    """True when a skill points at the ERPClaw books file (any install root)."""
+    if not db_path:
+        return False
+    expanded = os.path.abspath(os.path.expanduser(db_path))
+    shared = {
+        os.path.abspath(erpclaw_sqlite_path()),
+        os.path.abspath(os.path.expanduser("~/.openclaw/erpclaw/data.sqlite")),
+    }
+    return expanded in shared
+
+
+def _uses_shared_books(skill_name: str, db_path: str | None) -> bool:
+    if skill_name == "erpclaw" or skill_name.startswith("erpclaw-"):
+        return db_path is None or _is_shared_books(db_path) or not os.path.isfile(db_path or "")
+    if skill_name in _shared_skill_names():
+        return True
+    return _is_shared_books(db_path)
+
+
+def get_skill_db(skill_name: str):
     """Get a DB connection for a specific skill's data.
 
     Reads webclaw.database from the skill's SKILL.md frontmatter.
-    Falls back to the default erpclaw DB if no webclaw.database is specified.
-
-    Args:
-        skill_name: The skill directory name (e.g., 'erpclaw', 'auditclaw-grc').
+    Falls back to the shared ERPClaw books. When ``ERPCLAW_DB_DIALECT`` is
+    ``postgresql``, skills that share those books get a Postgres connection
+    instead of the SQLite file named in SKILL.md.
 
     Returns:
-        sqlite3.Connection or None if the DB doesn't exist.
+        A connection, or None if the database is not available.
     """
     db_path = _resolve_skill_db_path(skill_name)
-    if not db_path or not os.path.exists(db_path):
+    if use_postgres() and _uses_shared_books(skill_name, db_path):
+        try:
+            return open_postgres()
+        except Exception:
+            return None
+    if not db_path or not os.path.isfile(db_path):
         return None
 
     conn = sqlite3.connect(db_path)
@@ -126,11 +160,15 @@ def _resolve_skill_db_path(skill_name: str) -> str | None:
     except Exception:
         pass
 
-    # Fallback: try the default erpclaw database
+    # Fallback: the shared ERPClaw books, when that file is already there.
     if not db_path:
-        default = os.path.expanduser("~/.openclaw/erpclaw/data.sqlite")
-        if os.path.exists(default):
-            db_path = default
+        for candidate in (
+            erpclaw_sqlite_path(),
+            os.path.expanduser("~/.openclaw/erpclaw/data.sqlite"),
+        ):
+            if os.path.exists(candidate):
+                db_path = candidate
+                break
 
     _skill_db_cache[skill_name] = db_path
     return db_path
