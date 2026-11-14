@@ -9,6 +9,7 @@ Routes:
 """
 import os
 import re
+from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
@@ -28,6 +29,7 @@ from rbac_routes import router as admin_router
 from alerts.routes import router as alerts_router
 from middleware.audit import audit_middleware
 from middleware.request_id import request_id_middleware
+from files_routes import router as files_router
 
 # Environment — defaults to production for safety
 IS_DEV = os.environ.get("WEBCLAW_ENV", "production").lower() == "development"
@@ -36,7 +38,7 @@ CORS_ORIGIN = os.environ.get("WEBCLAW_CORS_ORIGIN", "http://localhost:3000")
 # Skill name validation: lowercase letters, digits, hyphens — 2-64 chars
 SKILL_NAME_RE = re.compile(r"^[a-z][a-z0-9-]{1,63}$")
 
-MAX_BODY_SIZE = 10 * 1024 * 1024  # 10 MB
+MAX_BODY_SIZE = 26 * 1024 * 1024  # title scans and deal paperwork, plus JSON margin
 
 # Fully exempt — no auth check at all
 AUTH_EXEMPT_PREFIXES = (
@@ -54,7 +56,16 @@ AUTH_REQUIRED_NO_RBAC = (
     "/api/v1/alerts",
 )
 
-app = FastAPI(title="Webclaw API", version="0.4.0")
+@asynccontextmanager
+async def lifespan(_app: FastAPI):
+    # Container entrypoint also calls this before uvicorn. A direct
+    # `uvicorn main:app` still gets an admin user and a stable JWT secret.
+    from bootstrap_admin import ensure_admin
+    ensure_admin()
+    yield
+
+
+app = FastAPI(title="Webclaw API", version="0.4.0", lifespan=lifespan)
 
 
 # ── Exception Handlers ──────────────────────────────────────────────────────
@@ -106,6 +117,7 @@ app.include_router(events_router)
 app.include_router(adaptive_router)
 app.include_router(admin_router)
 app.include_router(alerts_router)
+app.include_router(files_router)
 app.include_router(skills_router)
 
 
@@ -120,7 +132,7 @@ async def security_middleware(request: Request, call_next):
     content_length = request.headers.get("content-length")
     if content_length and int(content_length) > MAX_BODY_SIZE:
         return JSONResponse(
-            {"status": "error", "message": "Request body too large (max 10MB)"},
+            {"status": "error", "message": "Request body too large (max 26MB)"},
             status_code=413,
         )
 
@@ -188,7 +200,35 @@ app.middleware("http")(request_id_middleware)
 
 @app.get("/api/v1/health")
 async def health():
-    return {"status": "ok", "service": "ocui-api"}
+    """Liveness and dependency check. Connection strings are never included."""
+    body: dict = {"status": "ok", "service": "ocui-api"}
+    try:
+        conn = db.get_connection()
+        try:
+            conn.execute("SELECT 1")
+        finally:
+            conn.close()
+        body["webclaw_db"] = "ok"
+    except Exception:
+        body["webclaw_db"] = "unreachable"
+        body["status"] = "error"
+
+    dialect = os.environ.get("ERPCLAW_DB_DIALECT", "").strip().lower()
+    if dialect == "postgresql":
+        from pg_skill_db import postgres_reachable
+        body["database"] = "postgresql"
+        body["erpclaw"] = "ok" if postgres_reachable() else "unreachable"
+        if body["erpclaw"] != "ok":
+            body["status"] = "error"
+    elif dialect == "sqlite":
+        from runtime_paths import erpclaw_sqlite_path
+        body["database"] = "sqlite"
+        body["erpclaw"] = "ok" if os.path.isfile(erpclaw_sqlite_path()) else "missing"
+        if body["erpclaw"] != "ok":
+            body["status"] = "error"
+
+    status_code = 200 if body["status"] == "ok" else 503
+    return JSONResponse(body, status_code=status_code)
 
 
 if __name__ == "__main__":
