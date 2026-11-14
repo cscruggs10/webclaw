@@ -1,6 +1,6 @@
 # Nightly pg_dump of the ERPClaw books into the same S3-compatible bucket
 # used for uploads. The client major version must be at least the server's.
-FROM postgres:17-bookworm
+FROM postgres:18-bookworm
 
 RUN apt-get update \
     && apt-get install -y --no-install-recommends python3 python3-pip \
